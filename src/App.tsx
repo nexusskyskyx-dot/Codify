@@ -258,7 +258,7 @@ export default function App() {
 
           {/* Drawer panel — slides from left, sits over editor */}
           <div
-            className={`absolute inset-y-0 left-0 z-40 flex shadow-2xl transition-transform duration-200 ease-out ${sidebarOpen ? 'translate-x-0' : '-translate-x-full'}`}
+            className={`absolute inset-y-0 left-0 z-40 flex transition-transform duration-200 ease-out ${sidebarOpen ? 'translate-x-0 shadow-2xl' : '-translate-x-[120%] opacity-0 pointer-events-none'}`}
             style={{ maxWidth: '92vw' }}
           >
             <Sidebar
