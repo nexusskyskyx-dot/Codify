@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { Search, FilePlus2, FolderPlus, Play, Palette, Command } from 'lucide-react'
+import { Search, FilePlus2, FolderPlus, Play, Palette, Command, Sparkles, Trash2, Copy, Eye, EyeOff } from 'lucide-react'
 
 export default function CommandPalette({ open, onClose, onAction }: {
   open: boolean, onClose: ()=>void, onAction: (a:string)=>void
@@ -17,9 +17,11 @@ export default function CommandPalette({ open, onClose, onAction }: {
     { id:'new-folder', label:'New Folder', desc:'Create a new folder', icon: FolderPlus },
     { id:'new-project', label:'New Project…', desc:'Start from a template', icon: FilePlus2 },
     { id:'run', label:'Run Project', desc:'Build & preview', icon: Play },
-    { id:'palette-theme', label:'Toggle Theme', desc:'Tokyo Night ↔ Light', icon: Palette },
-    { id:'palette-preview', label:'Toggle Preview', desc:'Show/hide live preview', icon: Search },
-  ].filter(c=> !q || c.label.toLowerCase().includes(q.toLowerCase()))
+    { id:'palette-preview', label:'Toggle Preview', desc:'Show/hide live preview', icon: Eye },
+    { id:'palette-theme', label:'Toggle Theme', desc:'Tokyo Night ↔ Light (coming)', icon: Palette },
+    { id:'copy-link', label:'Copy Share Link', desc:'Copy URL to clipboard', icon: Copy },
+    { id:'ask-ai', label:'Ask Codify AI', desc:'Open AI chat', icon: Sparkles },
+  ].filter(c=> !q || c.label.toLowerCase().includes(q.toLowerCase()) || c.desc.toLowerCase().includes(q.toLowerCase()))
 
   return (
     <div className="fixed inset-0 z-50 flex items-start justify-center pt-[12vh] p-4">
@@ -32,14 +34,15 @@ export default function CommandPalette({ open, onClose, onAction }: {
         </div>
         <div className="max-h-[320px] overflow-auto p-2">
           {cmds.map(c=>(
-            <button key={c.id} onClick={()=>{ onAction(c.id); onClose() }} className="w-full text-left flex items-center gap-3 px-3 py-2.5 rounded-lg hover:bg-tokyo-bgHighlight">
+            <button key={c.id} onClick={()=>{ onAction(c.id); onClose() }} className="w-full text-left flex items-center gap-3 px-3 py-2.5 rounded-lg hover:bg-tokyo-bgHighlight border border-transparent hover:border-tokyo-border">
               <c.icon size={16} className="text-tokyo-blue" />
-              <span className="flex-1"><span className="text-sm">{c.label}</span><span className="text-xs text-tokyo-comment ml-2">{c.desc}</span></span>
+              <span className="flex-1"><span className="text-sm font-medium">{c.label}</span><span className="text-xs text-tokyo-comment ml-2">{c.desc}</span></span>
+              <span className="text-[10px] bg-tokyo-bgDark border border-tokyo-border rounded px-1 py-0.5 text-tokyo-comment">↵</span>
             </button>
           ))}
-          {cmds.length===0 && <p className="text-sm text-tokyo-comment px-3 py-6 text-center">No commands found.</p>}
+          {cmds.length===0 && <p className="text-sm text-tokyo-comment px-3 py-6 text-center">No commands found for “{q}”</p>}
         </div>
-        <div className="px-3 py-2 border-t border-tokyo-border text-xs text-tokyo-comment flex gap-3">
+        <div className="px-3 py-2 border-t border-tokyo-border text-xs text-tokyo-comment flex gap-3 flex-wrap">
           <span><span className="border border-tokyo-border rounded px-1">↑↓</span> navigate</span>
           <span><span className="border border-tokyo-border rounded px-1">↵</span> select</span>
           <span><span className="border border-tokyo-border rounded px-1">ESC</span> close</span>

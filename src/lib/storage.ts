@@ -40,6 +40,30 @@ export function findFile(files: FileNode[], id: string): FileNode | null {
   return null
 }
 
+export function findParentId(files: FileNode[], targetId: string, parentId: string | null = null): string | null {
+  for (const f of files) {
+    if (f.id === targetId) return parentId
+    if (f.children) {
+      const r = findParentId(f.children, targetId, f.id)
+      if (r !== null || f.children.some(c => c.id === targetId)) {
+        // Need to check if found directly underneath
+        if (f.children.some(c => c.id === targetId)) return f.id
+        if (r !== null) return r
+      }
+    }
+  }
+  return null
+}
+
+export function resolveFolderForCreate(files: FileNode[], requestedId: string | null): string | null {
+  if (requestedId === null) return null
+  const node = findFile(files, requestedId)
+  if (!node) return null
+  if (node.type === 'folder') return node.id
+  // if it's a file, return its parent folder
+  return findParentId(files, requestedId)
+}
+
 export function updateFileContent(files: FileNode[], id: string, content: string): FileNode[] {
   return files.map(f => {
     if (f.id === id) return { ...f, content }
@@ -74,5 +98,17 @@ export function collectAllFiles(files: FileNode[], out: FileNode[] = []) {
     if (f.type === 'file') out.push(f)
     if (f.children) collectAllFiles(f.children, out)
   }
+  return out
+}
+
+export function flattenIds(files: FileNode[]): string[] {
+  const out: string[] = []
+  function walk(nodes: FileNode[]) {
+    for (const n of nodes) {
+      out.push(n.id)
+      if (n.children) walk(n.children)
+    }
+  }
+  walk(files)
   return out
 }

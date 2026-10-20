@@ -1,8 +1,8 @@
-import { Files, Search, GitBranch, Bug, Puzzle, MessageCircle, Settings, User, LayoutGrid } from 'lucide-react'
+import { Files, Search, GitBranch, Bug, Puzzle, MessageCircle, Settings, User, LayoutGrid, Sparkles } from 'lucide-react'
 
 type View = 'explorer'|'search'|'git'|'debug'|'extensions'|'ai'
 
-export default function ActivityBar({ view, setView }: { view: View, setView: (v: View)=>void }) {
+export default function ActivityBar({ view, setView, onToast }: { view: View, setView: (v: View)=>void, onToast?: (m:string,t?:any)=>void }) {
   const items: { id: View, icon: any, label: string }[] = [
     { id: 'explorer', icon: Files, label: 'Explorer' },
     { id: 'search', icon: Search, label: 'Search' },
@@ -27,13 +27,13 @@ export default function ActivityBar({ view, setView }: { view: View, setView: (v
         </button>
       ))}
       <div className="flex-1" />
-      <button className="w-9 h-9 rounded-lg flex items-center justify-center text-tokyo-comment hover:text-tokyo-fg hover:bg-tokyo-bgHighlight/60">
+      <button onClick={()=> onToast && onToast('Layout: coming soon','info')} title="Layout" className="w-9 h-9 rounded-lg flex items-center justify-center text-tokyo-comment hover:text-tokyo-fg hover:bg-tokyo-bgHighlight/60">
         <LayoutGrid size={18} />
       </button>
-      <button className="w-9 h-9 rounded-lg flex items-center justify-center text-tokyo-comment hover:text-tokyo-fg hover:bg-tokyo-bgHighlight/60">
+      <button onClick={()=> onToast && onToast('Settings: theme is Tokyo Night','info')} title="Settings" className="w-9 h-9 rounded-lg flex items-center justify-center text-tokyo-comment hover:text-tokyo-fg hover:bg-tokyo-bgHighlight/60">
         <Settings size={18} />
       </button>
-      <button className="w-8 h-8 rounded-full bg-gradient-to-br from-tokyo-logoLight to-tokyo-logoDeep flex items-center justify-center text-white mt-1">
+      <button onClick={()=> onToast && onToast('Codify — Code anywhere, fast.','info')} title="Account" className="w-8 h-8 rounded-full bg-gradient-to-br from-tokyo-logoLight to-tokyo-logoDeep flex items-center justify-center text-white mt-1 hover:scale-105 transition-transform">
         <User size={16} />
       </button>
     </div>

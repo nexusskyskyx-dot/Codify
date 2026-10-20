@@ -1,9 +1,9 @@
-import { Search, Command, Play, Share2, MoreHorizontal, PanelLeftClose, PanelLeftOpen } from 'lucide-react'
+import { Search, Command, Play, Share2, MoreHorizontal, PanelLeftClose, PanelLeftOpen, Download } from 'lucide-react'
 
-export default function TopBar({ onPalette, onRun, sidebarOpen, setSidebarOpen, previewOpen, setPreviewOpen }: any) {
+export default function TopBar({ onPalette, onRun, sidebarOpen, setSidebarOpen, previewOpen, setPreviewOpen, onToast }: any) {
   return (
     <div className="h-9 bg-tokyo-bgDark border-b border-tokyo-border flex items-center gap-2 px-2 sm:px-3 shrink-0">
-      <button onClick={()=>setSidebarOpen((v:boolean)=>!v)} className="p-1.5 hover:bg-tokyo-bgHighlight rounded text-tokyo-fgDark">
+      <button onClick={()=>setSidebarOpen((v:boolean)=>!v)} className="p-1.5 hover:bg-tokyo-bgHighlight rounded text-tokyo-fgDark" title={sidebarOpen ? 'Hide sidebar' : 'Show sidebar'}>
         {sidebarOpen ? <PanelLeftClose size={16}/> : <PanelLeftOpen size={16}/>}
       </button>
       <img src="/logo.png" alt="Codify" className="w-6 h-6 rounded-md hidden sm:block object-cover" />
@@ -18,12 +18,12 @@ export default function TopBar({ onPalette, onRun, sidebarOpen, setSidebarOpen, 
       </button>
 
       <div className="flex items-center gap-1">
-        <button onClick={onRun} className="hidden sm:flex items-center gap-1.5 bg-tokyo-blue hover:bg-[#6b92f0] text-white px-3 py-1 rounded-md text-xs font-semibold">
+        <button onClick={()=>{ onRun(); onToast && onToast('▶ Running — check Preview'); }} className="hidden sm:flex items-center gap-1.5 bg-tokyo-blue hover:bg-[#6b92f0] text-white px-3 py-1 rounded-md text-xs font-semibold transition-colors">
           <Play size={12} fill="white" /> Run
         </button>
-        <button onClick={()=>setPreviewOpen((v:boolean)=>!v)} className={`p-1.5 rounded border text-xs ${previewOpen ? 'bg-tokyo-bgHighlight border-tokyo-blue text-tokyo-blue' : 'bg-tokyo-bgHighlight border-tokyo-border text-tokyo-fgDark'}`}>Preview</button>
-        <button className="p-1.5 hover:bg-tokyo-bgHighlight rounded text-tokyo-fgDark hidden sm:block"><Share2 size={16}/></button>
-        <button className="p-1.5 hover:bg-tokyo-bgHighlight rounded text-tokyo-fgDark hidden sm:block"><MoreHorizontal size={16}/></button>
+        <button onClick={()=>{ setPreviewOpen((v:boolean)=>!v); onToast && onToast(previewOpen ? 'Preview hidden' : 'Preview shown','info')}} className={`px-2.5 py-1 rounded border text-xs font-medium transition-colors ${previewOpen ? 'bg-tokyo-blue text-white border-tokyo-blue' : 'bg-tokyo-bgHighlight border-tokyo-border text-tokyo-fgDark hover:text-tokyo-fg'}`}>{previewOpen ? 'Hide Preview' : 'Preview'}</button>
+        <button onClick={async()=>{ try{ await navigator.clipboard.writeText(window.location.href); onToast && onToast('Link copied'); } catch{ onToast && onToast('Link: '+window.location.href,'info')} }} className="p-1.5 hover:bg-tokyo-bgHighlight rounded text-tokyo-fgDark hidden sm:flex" title="Share link"><Share2 size={16}/></button>
+        <button onClick={()=> onPalette()} className="p-1.5 hover:bg-tokyo-bgHighlight rounded text-tokyo-fgDark hidden sm:flex" title="Command palette (⌘K)"><MoreHorizontal size={16}/></button>
       </div>
     </div>
   )
