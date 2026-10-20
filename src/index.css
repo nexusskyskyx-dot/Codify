@@ -1,0 +1,15 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+* {
+  scrollbar-width: thin;
+  scrollbar-color: #3b4261 transparent;
+}
+::-webkit-scrollbar { width: 6px; height: 6px; }
+::-webkit-scrollbar-thumb { background: #3b4261; border-radius: 999px; }
+::-webkit-scrollbar-track { background: transparent; }
+
+.monaco-editor .scroll-decoration { box-shadow: none !important; }
+
+.xterm { padding: 8px; }
