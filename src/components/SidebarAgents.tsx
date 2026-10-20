@@ -30,6 +30,14 @@ const ROLE_SHORT: Record<Role, string> = {
   fixer: 'Fix',
 }
 
+const ROLE_ACTION: Record<Role, string> = {
+  architect: 'Thinking',
+  coder: 'Coding',
+  reviewer: 'Reviewing',
+  tester: 'Testing',
+  fixer: 'Fixing',
+}
+
 export default function SidebarAgents({ project, onToast, onClose, onCreateFile, onApplyTeamFiles, onRun }: Props) {
   const [prompt, setPrompt] = useState('')
   const [providerId, setProviderId] = useState<ProviderId>(() => getActiveProviderId())
@@ -39,6 +47,7 @@ export default function SidebarAgents({ project, onToast, onClose, onCreateFile,
   const [showSettings, setShowSettings] = useState(false)
   const [liveTest, setLiveTest] = useState<Record<string, { ok: boolean; ms: number; msg: string } | null>>({})
   const [testing, setTesting] = useState(false)
+  const [activeRole, setActiveRole] = useState<Role | null>(null)
   const scrollRef = useRef<HTMLDivElement>(null)
 
   const provider = PROVIDERS[providerId]
@@ -57,10 +66,12 @@ export default function SidebarAgents({ project, onToast, onClose, onCreateFile,
   async function handleRun() {
     if (!prompt.trim()) { onToast('Describe what to build', 'info'); return }
     setRunning(true)
+    setActiveRole(null)
     setSession({ task: prompt, rounds: 0, maxRounds: 2, turns: [], status: 'running', consensus: false, finalFiles: [] })
     setOpenTurn(null)
     try {
       const s = await runTeam(prompt, projectCtx, { maxRounds: 2, providerId }, {
+        onTurnStart: (role) => setActiveRole(role),
         onTurnEnd: (turn) => {
           setSession(prev => prev ? { ...prev, turns: [...prev.turns, turn] as Turn[], rounds: turn.round } : prev)
           if (turn.files?.length) onToast(`${AGENTS[turn.role].icon} ${turn.role} · ${turn.files.length} files`, 'info')
@@ -71,6 +82,7 @@ export default function SidebarAgents({ project, onToast, onClose, onCreateFile,
         },
         onDone: (s) => {
           setSession(s)
+          setActiveRole(null)
           if (s.finalFiles.length && onApplyTeamFiles) onApplyTeamFiles(s.finalFiles)
         }
       })
@@ -101,6 +113,8 @@ export default function SidebarAgents({ project, onToast, onClose, onCreateFile,
     if (role === 'tester' && last.parsed) return last.approved ? 'done' : 'needs'
     return last ? 'done' : 'idle'
   }
+
+  // keep but unused after pipeline removal — left for fallback
 
   return (
     <div className="w-[380px] sm:w-[420px] bg-[#151621] border-r border-white/[0.06] flex flex-col shrink-0 h-full overflow-hidden selection:bg-[#7aa2f7]/30">
@@ -160,34 +174,7 @@ export default function SidebarAgents({ project, onToast, onClose, onCreateFile,
         </div>
       )}
 
-      {/* ─── Minimal stepper ─── */}
-      <div className="px-4 py-4 shrink-0">
-        <div className="relative flex items-center justify-between">
-          {/* track */}
-          <div className="absolute left-[16px] right-[16px] top-[18px] h-px bg-white/10" />
-          {(Object.keys(AGENTS) as Role[]).map(role => {
-            const ag = AGENTS[role]; const st = statusOf(role)
-            const active = running && session?.turns.slice(-1)[0]?.role === role
-            return (
-              <div key={role} className="relative z-10 flex flex-col items-center gap-1.5 w-[64px]">
-                <div className={`w-9 h-9 rounded-full grid place-items-center text-[14px] border backdrop-blur transition
-                  ${st === 'done' ? 'bg-emerald-500 text-white border-emerald-500' : st === 'needs' ? 'bg-amber-500 text-white border-amber-500' : active ? 'bg-white text-black border-white' : 'bg-[#1c1d2a] border-white/10 text-white/50'}`}>
-                  {st === 'done' ? <Check size={14} /> : st === 'needs' ? <AlertCircle size={14} /> : <span>{ag.icon}</span>}
-                </div>
-                <div className="text-[11px] font-medium leading-none text-white/70">{ROLE_SHORT[role]}</div>
-                <div className="text-[10px] leading-none text-white/30 hidden sm:block">{ag.job}</div>
-              </div>
-            )
-          })}
-        </div>
-        {session && (
-          <div className="mt-3 flex justify-center">
-            <div className="text-[11px] px-2.5 py-1 rounded-full bg-white/[0.06] border border-white/5 text-white/50">
-              Round {session.rounds}/{session.maxRounds} · {session.consensus ? 'consensus' : running ? 'running' : 'needs review'}
-            </div>
-          </div>
-        )}
-      </div>
+
 
       {/* ─── Chat ─── */}
       <div ref={scrollRef} className="flex-1 overflow-auto px-4 pb-4 space-y-3">
@@ -205,19 +192,11 @@ export default function SidebarAgents({ project, onToast, onClose, onCreateFile,
                 <button key={ex} onClick={() => setPrompt(ex)} className="shrink-0 text-[13px] px-3.5 py-2 rounded-full bg-white text-black hover:bg-white/90 transition">{ex}</button>
               ))}
             </div>
-            <div className="rounded-2xl border border-white/5 bg-white/[0.03] p-3">
-              <div className="text-[11px] tracking-widest font-medium text-white/30">FLOW</div>
-              <div className="mt-2 grid grid-cols-5 gap-1 text-center text-[11px] text-white/50">
-                <span>Plan</span><span>Code</span><span>Review</span><span>Test</span><span>Fix</span>
-              </div>
-              <div className="mt-1 flex gap-2 justify-center">
-                <button onClick={() => onCreateFile(null)} className="text-[12px] px-3 py-1.5 rounded-full border border-white/10 text-white/60 hover:text-white">+ New File</button>
-                <button onClick={() => onRun?.()} className="text-[12px] px-3 py-1.5 rounded-full bg-white text-black">Preview</button>
-              </div>
-            </div>
+
           </div>
         ) : (
-          session.turns.map((t, i) => {
+          <>
+            {session.turns.map((t, i) => {
             const ag = AGENTS[t.role]
             const isOpen = openTurn === `${t.role}-${t.round}-${i}`
             const parsed = t.parsed
@@ -289,7 +268,16 @@ export default function SidebarAgents({ project, onToast, onClose, onCreateFile,
                 </div>
               </div>
             )
-          })
+            })}
+            {running && activeRole && (
+              <div className="ml-8 flex items-center gap-2 px-3.5 py-2.5 rounded-2xl bg-white/[0.04] border border-white/5 text-[12px] text-white/50">
+                <span className="w-3 h-3 border-2 border-white/20 border-t-white/80 rounded-full animate-spin shrink-0" />
+                <span>{AGENTS[activeRole].icon}</span>
+                <span className="font-medium text-white/70">{AGENTS[activeRole].name}</span>
+                <span>{ROLE_ACTION[activeRole]}…</span>
+              </div>
+            )}
+          </>
         )}
 
         {session?.status === 'done' && (
