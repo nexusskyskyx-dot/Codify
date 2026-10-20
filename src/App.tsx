@@ -236,8 +236,6 @@ export default function App() {
       <TopBar
         onPalette={()=> setPaletteOpen(true)}
         onRun={()=> { setPreviewOpen(true); toast('▶ Running — preview refreshed')}}
-        sidebarOpen={sidebarOpen}
-        setSidebarOpen={setSidebarOpen}
         previewOpen={previewOpen}
         setPreviewOpen={setPreviewOpen}
         onToast={toast}

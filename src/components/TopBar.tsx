@@ -1,11 +1,8 @@
-import { Search, Command, Play, Share2, MoreHorizontal, PanelLeftClose, PanelLeftOpen, Download } from 'lucide-react'
+import { Search, Command, Play, Share2, MoreHorizontal } from 'lucide-react'
 
-export default function TopBar({ onPalette, onRun, sidebarOpen, setSidebarOpen, previewOpen, setPreviewOpen, onToast }: any) {
+export default function TopBar({ onPalette, onRun, previewOpen, setPreviewOpen, onToast }: any) {
   return (
     <div className="h-9 bg-tokyo-bgDark border-b border-tokyo-border flex items-center gap-2 px-2 sm:px-3 shrink-0">
-      <button onClick={()=>setSidebarOpen((v:boolean)=>!v)} className="p-1.5 hover:bg-tokyo-bgHighlight rounded text-tokyo-fgDark" title={sidebarOpen ? 'Hide sidebar' : 'Show sidebar'}>
-        {sidebarOpen ? <PanelLeftClose size={16}/> : <PanelLeftOpen size={16}/>}
-      </button>
       <img src="/logo.png" alt="Codify" className="w-6 h-6 rounded-md hidden sm:block object-cover" />
       <span className="font-semibold tracking-tight text-sm hidden sm:block">Codify</span>
       <span className="hidden sm:block text-tokyo-comment text-xs">— Code anywhere, fast.</span>
