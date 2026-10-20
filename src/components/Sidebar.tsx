@@ -22,6 +22,7 @@ type Props = {
   onDuplicateProject?: (id:string)=>void
   expanded: Set<string>
   setExpanded: (fn: (s:Set<string>)=>Set<string>)=>void
+  onClose?: ()=>void
 }
 
 function FileIcon({ name, type, expanded }: { name: string, type: 'file'|'folder', expanded?: boolean }) {
@@ -59,7 +60,7 @@ function TreeNode({ node, depth, activeId, expanded, toggle, onSelect, onCtx, on
 }
 
 export default function Sidebar(props: Props) {
-  const { project, projects, activeFileId, view, onSelectFile, onCreateFile, onCreateFolder, onRename, onDelete, onSwitchProject, onNewProject, onRun, onToast, onDeleteProject, onDuplicateProject, expanded, setExpanded } = props
+  const { project, projects, activeFileId, view, onSelectFile, onCreateFile, onCreateFolder, onRename, onDelete, onSwitchProject, onNewProject, onRun, onToast, onDeleteProject, onDuplicateProject, expanded, setExpanded, onClose } = props
   const [ctx, setCtx] = useState<{ id: string, x: number, y: number } | null>(null)
   const [search, setSearch] = useState('')
   const [chatInput, setChatInput] = useState('')
@@ -99,8 +100,10 @@ export default function Sidebar(props: Props) {
       ? all.filter(f => f.name.toLowerCase().includes(search.toLowerCase()) || (f.content||'').toLowerCase().includes(search.toLowerCase()))
       : []
     return (
-      <div className="w-[260px] sm:w-[280px] bg-tokyo-bgSidebar border-r border-tokyo-border flex flex-col shrink-0 relative">
-        <div className="px-3 py-3 text-xs font-semibold tracking-widest text-tokyo-fg flex items-center gap-2"><SearchIcon size={12}/> SEARCH</div>
+      <div className="w-[280px] sm:w-[300px] bg-tokyo-bgSidebar border-r border-tokyo-border flex flex-col shrink-0 relative h-full">
+        <div className="px-3 py-3 text-xs font-semibold tracking-widest text-tokyo-fg flex items-center gap-2"><SearchIcon size={12}/> SEARCH
+          {onClose && <button onClick={onClose} className="ml-auto p-1 hover:bg-tokyo-bgHighlight rounded text-tokyo-comment">✕</button>}
+        </div>
         <div className="px-3 pb-3">
           <div className="flex items-center gap-2 bg-tokyo-bgDark border border-tokyo-border rounded-md px-2 py-1.5 focus-within:border-tokyo-blue">
             <SearchIcon size={14} className="text-tokyo-comment" />
@@ -124,11 +127,12 @@ export default function Sidebar(props: Props) {
 
   if (view==='ai') {
     return (
-      <div className="w-[280px] sm:w-[320px] bg-tokyo-bgFloat border-r border-tokyo-border flex flex-col shrink-0">
+      <div className="w-[300px] sm:w-[320px] bg-tokyo-bgFloat border-r border-tokyo-border flex flex-col shrink-0 h-full">
         <div className="px-3 py-3 flex items-center gap-2 border-b border-tokyo-border">
           <Sparkles size={16} className="text-tokyo-magenta" />
           <span className="text-xs font-semibold tracking-widest">CODIFY AI</span>
           <span className="ml-auto text-[10px] bg-tokyo-blue text-white px-1.5 py-0.5 rounded">GPT-4o</span>
+          {onClose && <button onClick={onClose} className="ml-2 p-1 hover:bg-tokyo-bgHighlight rounded text-tokyo-comment">✕</button>}
         </div>
         <div className="flex-1 overflow-auto p-3 space-y-3">
           {chat.map((m,i)=>(
@@ -155,8 +159,10 @@ export default function Sidebar(props: Props) {
       extensions: { icon: Puzzle, title:'EXTENSIONS', desc:'Browse themes, linters, and AI packs. Preinstalled: Tokyo Night, Prettier, ESLint. Install more via marketplace (coming soon).' },
     }[view]!
     return (
-      <div className="w-[260px] sm:w-[280px] bg-tokyo-bgSidebar border-r border-tokyo-border p-4 shrink-0 flex flex-col">
-        <div className="text-xs font-semibold tracking-widest flex items-center gap-2"> <info.icon size={14}/> {info.title}</div>
+      <div className="w-[280px] sm:w-[300px] bg-tokyo-bgSidebar border-r border-tokyo-border p-4 shrink-0 flex flex-col h-full">
+        <div className="text-xs font-semibold tracking-widest flex items-center gap-2"> <info.icon size={14}/> {info.title}
+          {onClose && <button onClick={onClose} className="ml-auto p-1 hover:bg-tokyo-bgHighlight rounded text-tokyo-comment">✕</button>}
+        </div>
         <p className="text-sm text-tokyo-comment mt-3 leading-5">{info.desc}</p>
         <button onClick={()=>{ onRun(); onToast('▶ Running project — see Preview');}} className="mt-4 w-full bg-tokyo-blue hover:bg-[#6b92f0] text-white rounded-lg py-2 text-sm font-medium">Run Project</button>
         <button onClick={()=> onToast('Coming soon','info')} className="mt-2 w-full bg-tokyo-bgDark border border-tokyo-border rounded-lg py-2 text-sm">Learn more</button>
@@ -166,7 +172,12 @@ export default function Sidebar(props: Props) {
 
   // explorer
   return (
-    <div className="w-[260px] sm:w-[280px] bg-tokyo-bgSidebar border-r border-tokyo-border flex flex-col shrink-0 min-h-0 relative">
+    <div className="w-[280px] sm:w-[300px] bg-tokyo-bgSidebar border-r border-tokyo-border flex flex-col shrink-0 min-h-0 relative h-full">
+      {/* drawer header with close */}
+      <div className="h-7 flex items-center justify-between px-3 border-b border-tokyo-border bg-tokyo-bgDark/50">
+        <span className="text-[11px] tracking-widest font-semibold text-tokyo-comment">EXPLORER DRAWER</span>
+        {onClose && <button onClick={onClose} className="p-1 hover:bg-tokyo-bgHighlight rounded text-tokyo-comment hover:text-tokyo-fg" title="Close drawer (Esc)">✕</button>}
+      </div>
       {/* project switcher */}
       <div className="px-3 py-2.5 border-b border-tokyo-border flex items-center gap-2">
         <div className="flex-1 min-w-0">

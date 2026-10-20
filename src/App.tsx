@@ -9,7 +9,7 @@ import CommandPalette from './components/CommandPalette'
 import NewProjectModal from './components/NewProjectModal'
 import ToastContainer, { useToast } from './components/Toast'
 import { FileNode, Project, Tab } from './lib/types'
-import { loadProjects, saveProjects, loadActiveId, saveActiveId, makeProject, findFile, updateFileContent, addNode, deleteNode, renameNode, collectAllFiles, resolveFolderForCreate, findParentId } from './lib/storage'
+import { loadProjects, saveProjects, loadActiveId, saveActiveId, makeProject, findFile, updateFileContent, addNode, deleteNode, renameNode, collectAllFiles, resolveFolderForCreate } from './lib/storage'
 import { LANGUAGE_MAP } from './lib/types'
 
 type View = 'explorer'|'search'|'git'|'debug'|'extensions'|'ai'
@@ -23,7 +23,7 @@ export default function App() {
   })
   const [activeId, setActiveId] = useState<string>(()=> loadActiveId() || '')
   const [view, setView] = useState<View>('explorer')
-  const [sidebarOpen, setSidebarOpen] = useState(true)
+  const [sidebarOpen, setSidebarOpen] = useState(false) // start closed — only editor visible
   const [previewOpen, setPreviewOpen] = useState(true)
   const [termCollapsed, setTermCollapsed] = useState(false)
   const [paletteOpen, setPaletteOpen] = useState(false)
@@ -42,21 +42,27 @@ export default function App() {
   useEffect(()=>{ if (activeId) saveActiveId(activeId) }, [activeId])
   useEffect(()=>{ saveProjects(projects) }, [projects])
 
-  useEffect(()=>{
-    if (window.innerWidth < 768) setSidebarOpen(false)
-  }, [])
-
-  // keyboard: cmd+k palette
+  // keyboard: cmd+k palette + Esc to close drawer
   useEffect(()=>{
     const h = (e: KeyboardEvent) => {
       if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase()==='k') { e.preventDefault(); setPaletteOpen(o=>!o) }
+      if (e.key==='Escape' && sidebarOpen) setSidebarOpen(false)
     }
     window.addEventListener('keydown', h)
     return ()=> window.removeEventListener('keydown', h)
-  }, [])
+  }, [sidebarOpen])
 
   function persistProject(upd: (p: Project)=>Project) {
     setProjects(ps => ps.map(pr => pr.id===project?.id ? upd(pr) : pr))
+  }
+
+  function handleViewChange(v: View) {
+    if (view === v && sidebarOpen) {
+      setSidebarOpen(false)
+    } else {
+      setView(v)
+      setSidebarOpen(true)
+    }
   }
 
   function openFile(fileId: string) {
@@ -101,7 +107,6 @@ export default function App() {
     const node: FileNode = { id: Math.random().toString(36).slice(2,8), name: trimmed, type:'folder', children: [] }
     persistProject(p=> ({...p, files: addNode(p.files, effectiveParent, node)}))
     if (effectiveParent) setExpanded(s=> { const n=new Set(s); n.add(effectiveParent); return n })
-    // also expand new folder so user sees it's there
     setExpanded(s=> { const n=new Set(s); n.add(node.id); return n })
     toast(`Created folder ${trimmed}`)
   }
@@ -121,12 +126,10 @@ export default function App() {
     if (!project) return
     const cur = findFile(project.files, id)
     const name = cur?.name || id
-    // collect all fileIds to close tabs (if folder, delete all child file tabs)
     const toDeleteIds = new Set<string>()
     function collect(targetFiles: FileNode[]) {
       for (const f of targetFiles) {
         if (f.id === id) {
-          // found target, collect its file descendants + itself if file
           function gather(n: FileNode) {
             if (n.type==='file') toDeleteIds.add(n.id)
             if (n.children) n.children.forEach(gather)
@@ -136,19 +139,12 @@ export default function App() {
       }
     }
     collect(project.files)
-    // if target is file itself
-    if (toDeleteIds.size===0) {
-      // fallback: maybe it's a file not found via folder path (root)
-      if (cur?.type==='file') toDeleteIds.add(id)
-    }
+    if (toDeleteIds.size===0 && cur?.type==='file') toDeleteIds.add(id)
     persistProject(p=> ({...p, files: deleteNode(p.files, id)}))
-    // close tabs that correspond to deleted fileIds
     setTabs(prev=>{
       const remaining = prev.filter(t=> !toDeleteIds.has(t.fileId))
-      // if active tab was deleted, select next available
       if (activeTabId && prev.find(t=> t.id===activeTabId && toDeleteIds.has(t.fileId))) {
         const next = remaining[0]?.id || null
-        // need to defer setActiveTabId to avoid double set? we can set directly here via microtask
         queueMicrotask(()=> setActiveTabId(next))
       }
       return remaining
@@ -190,7 +186,6 @@ export default function App() {
     setTabs(prev=>{
       const next = prev.filter(t=> t.id!==id)
       if (activeTabId===id) {
-        // pick nearest neighbor
         const idx = prev.findIndex(t=> t.id===id)
         const fallback = next[Math.min(idx, next.length-1)]?.id || next[0]?.id || null
         queueMicrotask(()=> setActiveTabId(fallback))
@@ -220,13 +215,11 @@ export default function App() {
     const js = files.filter(f=> f.name.toLowerCase().endsWith('.js')).map(f=> f.content||'').join('\n;\n')
     if (htmlFile?.content) {
       let doc = htmlFile.content
-      // inject CSS
       if (css) {
         if (doc.includes('</head>')) doc = doc.replace('</head>', `<style>${css}</style></head>`)
         else if (doc.includes('<head>')) doc = doc.replace('<head>', `<head><style>${css}</style>`)
         else doc = `<style>${css}</style>` + doc
       }
-      // inject JS
       if (js) {
         if (doc.includes('</body>')) doc = doc.replace('</body>', `<script>${js}<\/script></body>`)
         else doc = doc + `<script>${js}<\/script>`
@@ -249,37 +242,48 @@ export default function App() {
         setPreviewOpen={setPreviewOpen}
         onToast={toast}
       />
-      <div className="flex-1 flex min-h-0 relative">
-        <ActivityBar view={view} setView={setView} onToast={toast} />
+      {/* Main row: ActivityBar (always visible) + Editor area with drawer overlay */}
+      <div className="flex-1 flex min-h-0 overflow-hidden">
+        <ActivityBar view={view} setView={handleViewChange} onToast={toast} activeView={view} drawerOpen={sidebarOpen} />
 
-        {/* mobile overlay */}
-        {sidebarOpen && (
-          <div onClick={()=> setSidebarOpen(false)} className="absolute inset-0 bg-black/40 z-20 sm:hidden" />
-        )}
-
-        <div className={`${sidebarOpen ? 'flex' : 'hidden sm:flex'} ${sidebarOpen ? 'absolute sm:static inset-y-0 left-[48px] sm:left-auto z-30 sm:z-auto' : ''} shrink-0`}>
-          <Sidebar
-            project={project}
-            projects={projects}
-            activeFileId={activeTab?.fileId || null}
-            view={view}
-            onSelectFile={openFile}
-            onCreateFile={createFile}
-            onCreateFolder={createFolder}
-            onRename={doRename}
-            onDelete={doDelete}
-            onSwitchProject={(id)=>{ setActiveId(id); setTabs([]); setActiveTabId(null); setExpanded(new Set(['1'])); }}
-            onNewProject={()=> setNewOpen(true)}
-            onRun={()=> { setPreviewOpen(true); toast('▶ Running — preview refreshed')}}
-            onToast={toast}
-            onDeleteProject={handleDeleteProject}
-            onDuplicateProject={handleDuplicateProject}
-            expanded={expanded}
-            setExpanded={setExpanded as any}
+        {/* Editor + Terminal take full width — sidebar will overlay */}
+        <div className="flex-1 flex flex-col min-w-0 min-h-0 relative">
+          {/* Drawer backdrop + panel */}
+          {/* Backdrop */}
+          <div
+            className={`absolute inset-0 bg-black/40 backdrop-blur-[1px] z-30 transition-opacity duration-200 ${sidebarOpen ? 'opacity-100' : 'opacity-0 pointer-events-none'}`}
+            onClick={()=> setSidebarOpen(false)}
+            aria-hidden={!sidebarOpen}
           />
-        </div>
 
-        <div className="flex-1 flex flex-col min-w-0 min-h-0">
+          {/* Drawer panel — slides from left, sits over editor */}
+          <div
+            className={`absolute inset-y-0 left-0 z-40 flex shadow-2xl transition-transform duration-200 ease-out ${sidebarOpen ? 'translate-x-0' : '-translate-x-full'}`}
+            style={{ maxWidth: '92vw' }}
+          >
+            <Sidebar
+              project={project}
+              projects={projects}
+              activeFileId={activeTab?.fileId || null}
+              view={view}
+              onSelectFile={(id)=> { openFile(id); }}
+              onCreateFile={createFile}
+              onCreateFolder={createFolder}
+              onRename={doRename}
+              onDelete={doDelete}
+              onSwitchProject={(id)=>{ setActiveId(id); setTabs([]); setActiveTabId(null); setExpanded(new Set(['1'])); }}
+              onNewProject={()=> setNewOpen(true)}
+              onRun={()=> { setPreviewOpen(true); toast('▶ Running — preview refreshed')}}
+              onToast={toast}
+              onDeleteProject={handleDeleteProject}
+              onDuplicateProject={handleDuplicateProject}
+              expanded={expanded}
+              setExpanded={setExpanded as any}
+              onClose={()=> setSidebarOpen(false)}
+            />
+          </div>
+
+          {/* Editor is always full-width */}
           <EditorArea
             activeFile={activeFile}
             tabs={tabs}
@@ -300,8 +304,7 @@ export default function App() {
       <NewProjectModal open={newOpen} onClose={()=> setNewOpen(false)} onCreate={handleNewProject} />
       <ToastContainer toasts={toasts} dismiss={dismiss} />
 
-      {/* Floating mobile action */}
-      <button onClick={()=> setNewOpen(true)} className="sm:hidden fixed bottom-10 right-4 w-14 h-14 rounded-full bg-gradient-to-br from-tokyo-logoLight to-tokyo-logoDeep text-white shadow-xl flex items-center justify-center text-2xl z-40 hover:scale-105 transition-transform">+</button>
+      <button onClick={()=> setNewOpen(true)} className="sm:hidden fixed bottom-10 right-4 w-14 h-14 rounded-full bg-gradient-to-br from-tokyo-logoLight to-tokyo-logoDeep text-white shadow-xl flex items-center justify-center text-2xl z-50 hover:scale-105 transition-transform">+</button>
     </div>
   )
 }
