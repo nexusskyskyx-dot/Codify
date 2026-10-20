@@ -1,7 +1,8 @@
 import { useEffect, useRef, useState } from 'react'
-import { ChevronDown, ChevronRight, FilePlus2, FolderPlus, MoreHorizontal, Trash2, Pencil, Copy as CopyIcon, Search as SearchIcon, GitBranch, BugPlay, Puzzle, Sparkles, Send, Copy, Download, FileCode2, FileText, FolderClosed } from 'lucide-react'
+import { ChevronDown, ChevronRight, FilePlus2, FolderPlus, MoreHorizontal, Trash2, Pencil, Copy as CopyIcon, Search as SearchIcon, GitBranch, BugPlay, Puzzle, Copy, Download, FileCode2, FileText, FolderClosed } from 'lucide-react'
 import { FileNode, Project } from '../lib/types'
 import { collectAllFiles } from '../lib/storage'
+import SidebarAgents from './SidebarAgents'
 
 type Props = {
   project: Project | null
@@ -20,6 +21,7 @@ type Props = {
   onToast: (msg:string, type?:'success'|'info'|'error')=>void
   onDeleteProject?: (id:string)=>void
   onDuplicateProject?: (id:string)=>void
+  onUpdateFile?: (id:string, content:string)=>void
   expanded: Set<string>
   setExpanded: (fn: (s:Set<string>)=>Set<string>)=>void
   onClose?: ()=>void
@@ -126,30 +128,7 @@ export default function Sidebar(props: Props) {
   }
 
   if (view==='ai') {
-    return (
-      <div className="w-[300px] sm:w-[320px] bg-tokyo-bgFloat border-r border-tokyo-border flex flex-col shrink-0 h-full">
-        <div className="px-3 py-3 flex items-center gap-2 border-b border-tokyo-border">
-          <Sparkles size={16} className="text-tokyo-magenta" />
-          <span className="text-xs font-semibold tracking-widest">CODIFY AI</span>
-          <span className="ml-auto text-[10px] bg-tokyo-blue text-white px-1.5 py-0.5 rounded">GPT-4o</span>
-          {onClose && <button onClick={onClose} className="ml-2 p-1 hover:bg-tokyo-bgHighlight rounded text-tokyo-comment">✕</button>}
-        </div>
-        <div className="flex-1 overflow-auto p-3 space-y-3">
-          {chat.map((m,i)=>(
-            <div key={i} className={`rounded-xl px-3 py-2.5 text-[13px] leading-5 ${m.role==='user' ? 'bg-tokyo-blue text-white ml-6' : 'bg-tokyo-bgHighlight text-tokyo-fg mr-6 border border-tokyo-border'}`}>{m.text}</div>
-          ))}
-          <div className="flex flex-wrap gap-1.5 pt-1">
-            {['Explain this file','Add tests','Fix bugs','Make responsive'].map(q=>(
-              <button key={q} onClick={()=> { setChat(c=>[...c, {role:'user', text:q}, {role:'ai', text:`Sure! I’d ${q.toLowerCase()} — for the active file I’d generate a diff. In production this calls your LLM and patches the file.`}]); onToast(`AI: ${q}`,'info')}} className="text-xs px-2.5 py-1 rounded-full bg-tokyo-bgHighlight border border-tokyo-border hover:bg-tokyo-bgDark">{q}</button>
-            ))}
-          </div>
-        </div>
-        <div className="p-2 border-t border-tokyo-border flex gap-2">
-          <input value={chatInput} onChange={e=>setChatInput(e.target.value)} onKeyDown={e=>{ if(e.key==='Enter' && chatInput.trim()){ setChat(c=>[...c, {role:'user', text:chatInput}, {role:'ai', text: 'Got it — in Codify cloud I’d apply that edit live and show a diff. Connect an LLM key to make this real.'}]); onToast('Sent to Codify AI','info'); setChatInput('')}}} placeholder="Ask AI to edit, explain…" className="flex-1 bg-tokyo-bgDark border border-tokyo-border rounded-lg px-3 py-2 text-sm outline-none focus:border-tokyo-blue" />
-          <button onClick={()=>{ if(!chatInput.trim()) return; setChat(c=>[...c, {role:'user', text:chatInput}, {role:'ai', text: 'Done — I’d patch the file and show a diff. Wire Codify AI to your LLM to make this live.'}]); onToast('Sent to Codify AI','info'); setChatInput('')}} className="bg-tokyo-blue hover:bg-[#6b92f0] text-white p-2 rounded-lg transition-colors"><Send size={16} /></button>
-        </div>
-      </div>
-    )
+    return <SidebarAgents project={project} onToast={onToast} onClose={onClose} onCreateFile={onCreateFile} />
   }
 
   if (view==='git' || view==='debug' || view==='extensions') {
