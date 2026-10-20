@@ -1,10 +1,11 @@
 /**
  * Codify Providers — plug-in model layer.
- * Foundation is multi-agent team, free/no-key is just one plug-in (but kept as default).
+ * Foundation is multi-agent team, free/no-key is just one plug-in (kept as default).
  * All providers are OpenAI-compatible /chat/completions so they are interchangeable.
+ * Wired 2026-10-20: Puter.js + Pollinations Legacy + OVH as top 3 live free no-key plug-ins.
  */
 
-export type ProviderId = 'openrouter' | 'groq' | 'kilo' | 'gemini' | 'ovh' | 'llm7' | 'ollama' | 'mock'
+export type ProviderId = 'pollinations' | 'puter' | 'ovh' | 'llm7' | 'openrouter' | 'groq' | 'kilo' | 'gemini' | 'ollama' | 'mock'
 
 export type ProviderConfig = {
   id: ProviderId
@@ -17,10 +18,45 @@ export type ProviderConfig = {
   models: Record<string, string>
   rpm?: number
   note?: string
+  kind?: 'openai' | 'puter'
 }
 
 export const PROVIDERS: Record<ProviderId, ProviderConfig> = {
-  // Default free no-key plug-ins (stable, per mnfst/awesome-free-llm-apis)
+  // ── TOP 3 live free no-key (wired per user request) ──
+  pollinations: {
+    id: 'pollinations',
+    label: 'Pollinations Legacy • no key • 1 req/IP',
+    baseURL: 'https://text.pollinations.ai/openai',
+    requiresKey: false,
+    docsUrl: 'https://pollinations.ai',
+    models: {
+      architect: 'openai',
+      coder: 'openai',
+      reviewer: 'openai',
+      tester: 'openai',
+      fixer: 'openai',
+    },
+    rpm: 4, // ~1 per 15s = 4 RPM — pollinations classic anonymous tier
+    note: 'Legacy open text API, no signup. 1 req/IP at a time. Pollen credits for higher limits. New gen.pollinations.ai requires sk_/pk_.',
+    kind: 'openai',
+  },
+  puter: {
+    id: 'puter',
+    label: 'Puter.js • no dev key • User-Pays',
+    baseURL: 'https://js.puter.com/v2/',
+    requiresKey: false,
+    docsUrl: 'https://docs.puter.com/',
+    models: {
+      architect: 'openai/gpt-oss-20b',
+      coder: 'openai/gpt-oss-20b',
+      reviewer: 'openai/gpt-oss-20b',
+      tester: 'openai/gpt-oss-20b',
+      fixer: 'openai/gpt-oss-20b',
+    },
+    rpm: 100, // per-user, effectively unlimited for dev
+    note: 'Load https://js.puter.com/v2/ → puter.ai.chat(). No dev key; users cover via free Puter account (User-Pays).',
+    kind: 'puter',
+  },
   ovh: {
     id: 'ovh',
     label: 'OVH — no key • 2 RPM',
@@ -35,7 +71,8 @@ export const PROVIDERS: Record<ProviderId, ProviderConfig> = {
       fixer: 'Qwen3.5-397B-A17B',
     },
     rpm: 2,
-    note: 'Anonymous, no signup. 262K context. Best free no-key default.'
+    note: 'Anonymous, no signup. 262K context. Best free no-key default.',
+    kind: 'openai',
   },
   llm7: {
     id: 'llm7',
@@ -51,7 +88,8 @@ export const PROVIDERS: Record<ProviderId, ProviderConfig> = {
       fixer: 'gpt-oss:20b',
     },
     rpm: 60,
-    note: 'Anonymous fallback, fast.'
+    note: 'Anonymous fallback, fast.',
+    kind: 'openai',
   },
   // Free with key (still $0, no card for basic tier) — plug-in upgrade, same API, more RPM
   openrouter: {
@@ -69,7 +107,8 @@ export const PROVIDERS: Record<ProviderId, ProviderConfig> = {
       fixer: 'cohere/north-mini-code:free', // 0.88s patcher
     },
     rpm: 20,
-    note: '50 RPD free → 1000 RPD after $10 once (still free usage). Each :free ID = separate bucket.'
+    note: '50 RPD free → 1000 RPD after $10 once (still free usage). Each :free ID = separate bucket.',
+    kind: 'openai',
   },
   groq: {
     id: 'groq',
@@ -86,6 +125,7 @@ export const PROVIDERS: Record<ProviderId, ProviderConfig> = {
       fixer: 'qwen-2.5-coder-32b',
     },
     rpm: 30,
+    kind: 'openai',
   },
   kilo: {
     id: 'kilo',
@@ -102,6 +142,7 @@ export const PROVIDERS: Record<ProviderId, ProviderConfig> = {
       fixer: 'cohere/north-mini-code:free',
     },
     rpm: 200,
+    kind: 'openai',
   },
   gemini: {
     id: 'gemini',
@@ -118,6 +159,7 @@ export const PROVIDERS: Record<ProviderId, ProviderConfig> = {
       fixer: 'gemini-2.0-flash',
     },
     rpm: 15,
+    kind: 'openai',
   },
   ollama: {
     id: 'ollama',
@@ -132,7 +174,8 @@ export const PROVIDERS: Record<ProviderId, ProviderConfig> = {
       tester: 'qwen2.5-coder:7b',
       fixer: 'qwen2.5-coder:7b',
     },
-    note: 'Run ollama pull qwen2.5-coder:7b'
+    note: 'Run ollama pull qwen2.5-coder:7b',
+    kind: 'openai',
   },
   mock: {
     id: 'mock',
@@ -147,12 +190,13 @@ export const PROVIDERS: Record<ProviderId, ProviderConfig> = {
       tester: 'mock',
       fixer: 'mock',
     },
-    note: 'No network — shows team flow with realistic fake output.'
+    note: 'No network — shows team flow with realistic fake output.',
+    kind: 'openai',
   },
 }
 
-export const DEFAULT_PROVIDER: ProviderId = 'ovh' // free no-key default per user request
-export const FALLBACK_CHAIN: ProviderId[] = ['ovh', 'llm7', 'openrouter', 'groq', 'kilo', 'ollama', 'mock']
+export const DEFAULT_PROVIDER: ProviderId = 'ovh' // keep OVH as stable default; pollinations/puter are top plug-ins in chain
+export const FALLBACK_CHAIN: ProviderId[] = ['ovh', 'pollinations', 'puter', 'llm7', 'openrouter', 'groq', 'kilo', 'ollama', 'mock']
 
 export function getActiveProviderId(): ProviderId {
   try {

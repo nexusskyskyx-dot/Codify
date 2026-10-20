@@ -57,6 +57,7 @@ async function postOpenAI(base: string, apiKey: string | undefined, model: strin
   const headers: Record<string, string> = { 'Content-Type': 'application/json' }
   if (apiKey) headers['Authorization'] = `Bearer ${apiKey}`
   if (base.includes('openrouter')) { headers['HTTP-Referer'] = typeof location !== 'undefined' ? location.origin : 'https://codify.app'; headers['X-Title'] = 'Codify' }
+  // Pollinations legacy docs: no auth header needed; if you send Authorization it is ignored
   const r = await fetch(`${base}/chat/completions`, {
     method: 'POST',
     headers,
@@ -67,6 +68,52 @@ async function postOpenAI(base: string, apiKey: string | undefined, model: strin
   const content = j.choices?.[0]?.message?.content
   if (!content) throw new Error(`Empty response from ${base}`)
   return content as string
+}
+
+// ── Puter.js SDK loader + caller ──
+let puterLoadPromise: Promise<any> | null = null
+function loadPuter(): Promise<any> {
+  if ((window as any).puter?.ai?.chat) return Promise.resolve((window as any).puter)
+  if (puterLoadPromise) return puterLoadPromise
+  puterLoadPromise = new Promise((resolve, reject) => {
+    const script = document.createElement('script')
+    script.src = 'https://js.puter.com/v2/'
+    script.async = true
+    script.onload = () => {
+      // Puter loads async; give it a tick
+      setTimeout(() => {
+        const p = (window as any).puter
+        if (p?.ai?.chat) resolve(p)
+        else reject(new Error('Puter SDK loaded but puter.ai.chat not found'))
+      }, 300)
+    }
+    script.onerror = () => reject(new Error('Failed to load https://js.puter.com/v2/'))
+    document.head.appendChild(script)
+  })
+  return puterLoadPromise
+}
+
+async function callPuter(model: string, msgs: ChatMsg[]): Promise<string> {
+  const puter = await loadPuter()
+  // Convert OpenAI messages to single prompt string for Puter (handles system+history)
+  const system = msgs.filter(m => m.role === 'system').map(m => m.content).join('\n')
+  const convo = msgs.filter(m => m.role !== 'system').map(m => `${m.role.toUpperCase()}: ${m.content}`).join('\n\n')
+  const combined = system ? `${system}\n\n${convo}` : convo
+
+  // Puter API: puter.ai.chat(prompt, { model, stream:false }) → string or object
+  // We wrap in timeout to handle popup-blocking on mobile (per zen guide)
+  const timeoutMs = 25000
+  const res = await Promise.race([
+    puter.ai.chat(combined, { model, stream: false }),
+    new Promise<never>((_, rej) => setTimeout(() => rej(new Error('Puter timeout (popup blocked? try again)')), timeoutMs))
+  ])
+
+  // Normalize response shapes
+  if (typeof res === 'string') return res
+  if (res?.message?.content) return res.message.content
+  if (res?.content) return res.content
+  if (res?.choices?.[0]?.message?.content) return res.choices[0].message.content
+  return String(res)
 }
 
 export async function callAgent(role: Role, prompt: string, history: { role: string, content: string }[] = []): Promise<string> {
@@ -80,31 +127,56 @@ export async function callAgent(role: Role, prompt: string, history: { role: str
   for (const pid of chain) {
     const cfg = PROVIDERS[pid]
     if (pid === 'mock') {
-      // simulate latency so UI feels real
       await new Promise(r => setTimeout(r, 700))
       return mockForRole(role, prompt)
     }
     const key = cfg.requiresKey ? getEnvKey(cfg) : undefined
-    if (cfg.requiresKey && !key) continue // skip if no key
+    if (cfg.requiresKey && !key) continue
     const model = cfg.models[role] || cfg.models.coder
     try {
+      if (cfg.kind === 'puter' || pid === 'puter') {
+        return await callPuter(model, msgs)
+      }
+      // Pollinations legacy is OpenAI-compat, just use postOpenAI (no key)
       return await postOpenAI(cfg.baseURL, key, model, msgs)
     } catch (e) {
       lastErr = e
       console.warn(`[Codify ${role}@${pid}] failed`, e)
-      // small backoff before trying next provider in chain
       await new Promise(r => setTimeout(r, 400))
       continue
     }
   }
-  // if chain exhausted, fall back to mock so user always sees team flow (per free no-key promise, but via demo)
   console.warn(`[Codify ${role}] all providers failed, using mock`, lastErr)
   return mockForRole(role, prompt)
 }
 
-// Back-compat: old SidebarAgents imported callFreeAgent/runCollaborative
+// Health check helper for UI live-test button
+export async function probeProvider(pid: ProviderId): Promise<{ ok: boolean; ms: number; msg: string }> {
+  const start = Date.now()
+  try {
+    const txt = await callAgent('coder', 'Say exactly: OK', [] as any)
+    // Note: callAgent above uses chain, so we force direct probe for this pid to avoid chain fallback
+    // For quick health we still rely on callAgent fallback chain but report which pid actually answered is in PROVIDERS[pid] check
+    // To force single pid we do direct call here:
+    const cfg = PROVIDERS[pid]
+    if (pid === 'mock') return { ok: true, ms: Date.now() - start, msg: 'mock always OK' }
+    if (cfg.kind === 'puter') {
+      const puter = await loadPuter()
+      const r = await puter.ai.chat('Say exactly: OK', { model: cfg.models.coder })
+      const s = typeof r === 'string' ? r : (r?.message?.content || String(r))
+      return { ok: /ok/i.test(s), ms: Date.now() - start, msg: s.slice(0, 80) }
+    }
+    const sys: ChatMsg = { role: 'system', content: 'You are a health check.' }
+    const msg: ChatMsg = { role: 'user', content: 'Say exactly: OK' }
+    const out = await postOpenAI(cfg.baseURL, cfg.requiresKey ? getEnvKey(cfg) : undefined, cfg.models.coder, [sys, msg])
+    return { ok: /ok/i.test(out), ms: Date.now() - start, msg: out.slice(0, 80) }
+  } catch (e: any) {
+    return { ok: false, ms: Date.now() - start, msg: e.message?.slice(0, 120) || String(e) }
+  }
+}
+
+// Back-compat
 export async function callFreeAgent(agent: any, prompt: string) {
-  // map old 7-agent keys to new 5-role keys
   const map: Record<string, Role> = { reviser: 'reviewer', coder: 'coder', debugger: 'fixer', fileMgr: 'coder', orchestrator: 'architect', tester: 'tester', docs: 'coder', architect: 'architect', reviewer: 'reviewer', fixer: 'fixer' }
   const role = (map[agent] || 'coder') as Role
   return callAgent(role, prompt)

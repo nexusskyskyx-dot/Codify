@@ -3,6 +3,7 @@ import { AGENTS, type Role, type Turn, type Session } from '../lib/agents/team'
 import { PROVIDERS, getActiveProviderId, setActiveProviderId, getProviderChain, isProviderReady, type ProviderId } from '../lib/agents/providers'
 import { runTeam } from '../lib/agents/orchestrator'
 import { projectContextForPrompt } from '../lib/storage'
+import { probeProvider } from '../lib/agents/client'
 import type { Project } from '../lib/types'
 
 type Props = {
@@ -37,6 +38,8 @@ export default function SidebarAgents({ project, onToast, onClose, onCreateFile,
   const [running, setRunning] = useState(false)
   const [expandedTurn, setExpandedTurn] = useState<string | null>(null)
   const [showProviderHelp, setShowProviderHelp] = useState(false)
+  const [liveTest, setLiveTest] = useState<Record<string, { ok: boolean; ms: number; msg: string } | null>>({})
+  const [testing, setTesting] = useState(false)
   const scrollRef = useRef<HTMLDivElement>(null)
 
   const provider = PROVIDERS[providerId]
@@ -94,11 +97,24 @@ export default function SidebarAgents({ project, onToast, onClose, onCreateFile,
     const last = [...session.turns].reverse().find(t => t.role === role)
     if (!last) return running ? 'idle' : 'idle'
     if (running && session.turns[session.turns.length - 1]?.role === role && session.status === 'running') {
-      // last turn is running? we can't know exactly, treat most recent as done unless overall running
     }
     if (role === 'reviewer' && last.parsed) return last.approved ? 'done' : 'needs'
     if (role === 'tester' && last.parsed) return last.approved ? 'done' : 'needs'
     return last ? 'done' : 'idle'
+  }
+
+  async function runLiveTest() {
+    setTesting(true)
+    setLiveTest({})
+    const ids: ProviderId[] = ['pollinations', 'puter', 'ovh', 'llm7'] // top 3 + fallback
+    for (const id of ids) {
+      setLiveTest(prev => ({ ...prev, [id]: null }))
+      const res = await probeProvider(id)
+      setLiveTest(prev => ({ ...prev, [id]: res }))
+      await new Promise(r => setTimeout(r, 350)) // respect pollinations 1 req per IP spacing
+    }
+    setTesting(false)
+    onToast('Live test done — green = OK', 'info')
   }
 
   return (
@@ -111,14 +127,33 @@ export default function SidebarAgents({ project, onToast, onClose, onCreateFile,
         {onClose && <button onClick={onClose} className="ml-auto p-1 hover:bg-tokyo-bgHighlight rounded text-tokyo-comment">✕</button>}
       </div>
 
-      {/* Free no-key banner — plug-in, not foundation, but kept per user request */}
+      {/* Free no-key banner — top 3 wired */}
       <div className="mx-3 mt-2 px-2.5 py-2 rounded-lg bg-[#1e2030] border border-tokyo-border flex items-center gap-2">
         <span className="w-2 h-2 rounded-full bg-tokyo-green animate-pulse shrink-0" />
         <span className="text-[11px] text-tokyo-fgDark leading-tight flex-1">
-          <b className="text-tokyo-fg">Free no-key active</b> — OVH 2 RPM → LLM7 fallback. No key needed. Add OpenRouter for 20 RPM / 1000 RPD.
+          <b className="text-tokyo-fg">Free no-key wired</b> — Pollinations Legacy → Puter.js → OVH 2 RPM (all no key). Fallback to LLM7.
         </span>
         <button onClick={() => setShowProviderHelp(v => !v)} className="text-[11px] text-tokyo-blue hover:underline shrink-0">{showProviderHelp ? 'Hide' : 'Keys'}</button>
       </div>
+      <div className="mx-3 mt-1.5 flex gap-1.5">
+        <button onClick={runLiveTest} disabled={testing} className={`flex-1 text-[11px] px-2 py-1 rounded-full border font-medium ${testing ? 'bg-tokyo-bgDark border-tokyo-border text-tokyo-comment' : 'bg-tokyo-blue text-white border-tokyo-blue hover:bg-[#6b92f0]'}`}>{testing ? 'Testing…' : '▶ Test Live Providers'}</button>
+        <span className="text-[10px] text-tokyo-comment self-center">Puter needs 1 sign-in • Pollinations 1 req/IP</span>
+      </div>
+      {Object.keys(liveTest).length > 0 && (
+        <div className="mx-3 mt-1.5 p-2 rounded-lg bg-tokyo-bgDark border border-tokyo-border grid gap-1">
+          {(['pollinations', 'puter', 'ovh', 'llm7'] as ProviderId[]).map(id => {
+            const r = liveTest[id]
+            return (
+              <div key={id} className="flex items-center gap-2 text-[11px]">
+                <span className={`w-2 h-2 rounded-full ${!r ? 'bg-tokyo-yellow animate-pulse' : r.ok ? 'bg-tokyo-green' : 'bg-tokyo-red'}`} />
+                <span className="text-tokyo-fgDark truncate flex-1">{PROVIDERS[id].label}</span>
+                <span className={`text-[10px] px-1.5 py-0.5 rounded-full border ${!r ? 'border-tokyo-border text-tokyo-comment' : r.ok ? 'bg-tokyo-green/20 border-tokyo-green/40 text-tokyo-green' : 'bg-tokyo-red/20 border-tokyo-red/40 text-tokyo-red'}`}>{!r ? '…' : r.ok ? `OK ${r.ms}ms` : `FAIL`}</span>
+                {r && <span className="text-[10px] text-tokyo-comment hidden sm:block truncate max-w-[90px]">{r.msg}</span>}
+              </div>
+            )
+          })}
+        </div>
+      )}
 
       {showProviderHelp && (
         <div className="mx-3 mt-2 p-2 rounded-lg bg-tokyo-bgDark border border-tokyo-border text-[11px] leading-4">
