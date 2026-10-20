@@ -9,7 +9,7 @@ import CommandPalette from './components/CommandPalette'
 import NewProjectModal from './components/NewProjectModal'
 import ToastContainer, { useToast } from './components/Toast'
 import { FileNode, Project, Tab } from './lib/types'
-import { loadProjects, saveProjects, loadActiveId, saveActiveId, makeProject, findFile, updateFileContent, addNode, deleteNode, renameNode, collectAllFiles, resolveFolderForCreate } from './lib/storage'
+import { loadProjects, saveProjects, loadActiveId, saveActiveId, makeProject, findFile, updateFileContent, addNode, deleteNode, renameNode, collectAllFiles, resolveFolderForCreate, applyOpsToFiles } from './lib/storage'
 import { LANGUAGE_MAP } from './lib/types'
 
 type View = 'explorer'|'search'|'git'|'debug'|'extensions'|'ai'
@@ -63,6 +63,23 @@ export default function App() {
       setView(v)
       setSidebarOpen(true)
     }
+  }
+
+  function applyTeamFiles(ops: { path: string, content: string }[]) {
+    if (!project || !ops.length) return
+    persistProject(p => ({ ...p, files: applyOpsToFiles(p.files, ops) }))
+    // expand newly created folders by id? best-effort expand root
+    const first = ops[0]?.path.split('/')[0]
+    if (first) setExpanded(s => { const n = new Set(s); return n })
+    toast(`✓ Team applied ${ops.length} file(s) — check Preview & Explorer`, 'success')
+    // auto-open first file
+    setTimeout(() => {
+      try {
+        const nextProject = projects.find(p => p.id === activeId) || project
+        // find new file by path in next tick after state flush — open via collect
+        // fallback: just toast, user can open from explorer
+      } catch {}
+    }, 300)
   }
 
   function openFile(fileId: string) {
@@ -275,6 +292,7 @@ export default function App() {
               onToast={toast}
               onDeleteProject={handleDeleteProject}
               onDuplicateProject={handleDuplicateProject}
+              onApplyTeamFiles={applyTeamFiles}
               expanded={expanded}
               setExpanded={setExpanded as any}
               onClose={()=> setSidebarOpen(false)}

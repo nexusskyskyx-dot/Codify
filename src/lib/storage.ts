@@ -1,4 +1,4 @@
-import { Project, FileNode } from './types'
+import { Project, FileNode, LANGUAGE_MAP } from './types'
 import { TEMPLATES } from './templates'
 
 function cloneFiles(files: FileNode[]): FileNode[] {
@@ -46,7 +46,6 @@ export function findParentId(files: FileNode[], targetId: string, parentId: stri
     if (f.children) {
       const r = findParentId(f.children, targetId, f.id)
       if (r !== null || f.children.some(c => c.id === targetId)) {
-        // Need to check if found directly underneath
         if (f.children.some(c => c.id === targetId)) return f.id
         if (r !== null) return r
       }
@@ -60,7 +59,6 @@ export function resolveFolderForCreate(files: FileNode[], requestedId: string | 
   const node = findFile(files, requestedId)
   if (!node) return null
   if (node.type === 'folder') return node.id
-  // if it's a file, return its parent folder
   return findParentId(files, requestedId)
 }
 
@@ -111,4 +109,77 @@ export function flattenIds(files: FileNode[]): string[] {
   }
   walk(files)
   return out
+}
+
+// --- Team file ops helpers (auto-apply) ---
+export type FileOp = { path: string; content: string }
+
+export function extToLang(ext: string): string {
+  return (LANGUAGE_MAP as any)[ext.toLowerCase()] || 'plaintext'
+}
+
+function findByPath(files: FileNode[], pathParts: string[]): FileNode | null {
+  let cur: FileNode[] = files
+  let node: FileNode | null = null
+  for (let i = 0; i < pathParts.length; i++) {
+    const part = pathParts[i]
+    node = cur.find(n => n.name === part) || null
+    if (!node) return null
+    if (i < pathParts.length - 1) {
+      if (node.type !== 'folder' || !node.children) return null
+      cur = node.children
+    }
+  }
+  return node
+}
+
+function ensureFolderPath(files: FileNode[], folderParts: string[]): FileNode[] {
+  if (folderParts.length === 0) return files
+  let out = [...files]
+  let curLevel = out
+  let parentStack: FileNode[][] = []
+  for (const part of folderParts) {
+    let existing = curLevel.find(n => n.name === part && n.type === 'folder')
+    if (!existing) {
+      const created: FileNode = { id: Math.random().toString(36).slice(2, 8), name: part, type: 'folder', children: [] }
+      curLevel.push(created)
+      existing = created
+    }
+    parentStack.push(curLevel)
+    curLevel = existing.children!
+  }
+  return out
+}
+
+export function applyOpsToFiles(files: FileNode[], ops: FileOp[]): FileNode[] {
+  let out = JSON.parse(JSON.stringify(files)) as FileNode[]
+  for (const op of ops) {
+    const clean = op.path.replace(/^\//, '').trim()
+    if (!clean) continue
+    const parts = clean.split('/').filter(Boolean)
+    const fileName = parts.pop()!
+    const folderParts = parts
+    out = ensureFolderPath(out, folderParts)
+    const existing = findByPath(out, [...folderParts, fileName])
+    const ext = fileName.split('.').pop() || ''
+    if (existing && existing.type === 'file') {
+      out = updateFileContent(out, existing.id, op.content)
+    } else {
+      // create under folder
+      let cur: FileNode[] = out
+      for (const p of folderParts) {
+        const f = cur.find(n => n.name === p && n.type === 'folder')!
+        cur = f.children!
+      }
+      const node: FileNode = { id: Math.random().toString(36).slice(2, 8), name: fileName, type: 'file', language: extToLang(ext), content: op.content }
+      cur.push(node)
+    }
+  }
+  return out
+}
+
+export function projectContextForPrompt(project: Project): string {
+  const all = collectAllFiles(project.files)
+  const summary = all.map(f => `--- ${f.name} (${f.language}) ---\n${(f.content || '').slice(0, 4000)}`).join('\n\n')
+  return `Project: ${project.name} (${project.template})\nFiles: ${all.length}\n\n${summary}`
 }

@@ -22,6 +22,7 @@ type Props = {
   onDeleteProject?: (id:string)=>void
   onDuplicateProject?: (id:string)=>void
   onUpdateFile?: (id:string, content:string)=>void
+  onApplyTeamFiles?: (ops: {path:string, content:string}[])=>void
   expanded: Set<string>
   setExpanded: (fn: (s:Set<string>)=>Set<string>)=>void
   onClose?: ()=>void
@@ -62,7 +63,7 @@ function TreeNode({ node, depth, activeId, expanded, toggle, onSelect, onCtx, on
 }
 
 export default function Sidebar(props: Props) {
-  const { project, projects, activeFileId, view, onSelectFile, onCreateFile, onCreateFolder, onRename, onDelete, onSwitchProject, onNewProject, onRun, onToast, onDeleteProject, onDuplicateProject, expanded, setExpanded, onClose } = props
+  const { project, projects, activeFileId, view, onSelectFile, onCreateFile, onCreateFolder, onRename, onDelete, onSwitchProject, onNewProject, onRun, onToast, onDeleteProject, onDuplicateProject, onApplyTeamFiles, expanded, setExpanded, onClose } = props
   const [ctx, setCtx] = useState<{ id: string, x: number, y: number } | null>(null)
   const [search, setSearch] = useState('')
   const [chatInput, setChatInput] = useState('')
@@ -128,7 +129,7 @@ export default function Sidebar(props: Props) {
   }
 
   if (view==='ai') {
-    return <SidebarAgents project={project} onToast={onToast} onClose={onClose} onCreateFile={onCreateFile} />
+    return <SidebarAgents project={project} onToast={onToast} onClose={onClose} onCreateFile={onCreateFile} onApplyTeamFiles={onApplyTeamFiles} onRun={onRun} />
   }
 
   if (view==='git' || view==='debug' || view==='extensions') {
